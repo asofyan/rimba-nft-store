@@ -24,19 +24,26 @@ const User = mongoose.model('User', userSchema);
 
 // Registration Endpoint
 app.post('/register', async (req, res) => {
-  const { username, password } = req.body;
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-
-  try {
-    const newUser = new User({ username, password: hashedPassword });
-    await newUser.save();
-
-    res.status(201).json({ message: 'User registered successfully' });
-  } catch (error) {
-    res.status(400).json({ error: 'User registration failed' });
-  }
-});
+    const { username, password } = req.body;
+  
+    // Validate input data
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Missing username or password' });
+    }
+  
+    const hashedPassword = await bcrypt.hash(password, 10);
+  
+    try {
+      const newUser = new User({ username, password: hashedPassword });
+      await newUser.save();
+  
+      res.status(201).json({ message: 'User registered successfully' });
+    } catch (error) {
+      // Handle specific errors (e.g., duplicate username)
+      return res.status(400).json({ error: 'User registration failed' });
+    }
+  });
+  
 
 // Login Endpoint
 app.post('/login', async (req, res) => {
