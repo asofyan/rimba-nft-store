@@ -1,9 +1,9 @@
 # Node.js
-/node_modules        # Exclude the node_modules directory containing installed packages
-npm-debug.log        # Exclude npm debug logs
-yarn-debug.log       # Exclude Yarn debug logs
-yarn-error.log       # Exclude Yarn error logs
-/package-lock.json    # Optional: if you don't want to track npm's lock file (keep it if using npm ci)
+node_modules
+npm-debug.log
+yarn-debug.log
+yarn-error.log    
+package-lock.json
 
 # Logs
 *.log                # Exclude all log files
