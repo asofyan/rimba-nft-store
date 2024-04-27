@@ -1,0 +1,25 @@
+# Node.js
+node_modules/        # Exclude the node_modules directory containing installed packages
+npm-debug.log        # Exclude npm debug logs
+yarn-debug.log       # Exclude Yarn debug logs
+yarn-error.log       # Exclude Yarn error logs
+package-lock.json    # Optional: if you don't want to track npm's lock file (keep it if using npm ci)
+
+# Logs
+*.log                # Exclude all log files
+logs/                # Exclude a directory named 'logs'
+
+# OS Files
+.DS_Store            # Exclude macOS-specific hidden files
+Thumbs.db            # Exclude Windows thumbnail database files
+
+# IDE Configurations
+.idea/               # Exclude JetBrains IDE (e.g., WebStorm, PyCharm) configuration files
+.vscode/             # Exclude Visual Studio Code configuration files
+
+# Environment Variables
+.env                 # Exclude environment variable files (e.g., dotenv)
+
+# Build Files
+dist/                # Exclude distribution/build output
+build/               # Exclude build artifacts
