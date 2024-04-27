@@ -6,20 +6,20 @@ yarn-error.log
 package-lock.json
 
 # Logs
-*.log                # Exclude all log files
-logs/                # Exclude a directory named 'logs'
+*.log
+logs/
 
 # OS Files
-.DS_Store            # Exclude macOS-specific hidden files
-Thumbs.db            # Exclude Windows thumbnail database files
+.DS_Store
+Thumbs.db
 
 # IDE Configurations
-.idea/               # Exclude JetBrains IDE (e.g., WebStorm, PyCharm) configuration files
-.vscode/             # Exclude Visual Studio Code configuration files
+.idea/
+.vscode/
 
 # Environment Variables
-.env                 # Exclude environment variable files (e.g., dotenv)
+.env
 
 # Build Files
-dist/                # Exclude distribution/build output
-build/               # Exclude build artifacts
+dist/
+build/
