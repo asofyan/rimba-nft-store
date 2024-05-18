@@ -150,4 +150,87 @@ router.delete('/users/:id', authenticateToken, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/users/deactivated:
+ *   get:
+ *     summary: Retrieve a list of soft-deleted users
+ *     description: Returns a list of users who have been soft-deleted. Can only be accessed by authenticated users with admin privileges.
+ *     tags:
+ *       - Users
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: A list of soft-deleted users.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Unauthorized, if the user is not authenticated.
+ *       403:
+ *         description: Forbidden, if the user does not have the right privileges.
+ */
+
+router.get('/users/deactivated', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const users = await User.find({ isActive: false });
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: 'Error retrieving users', details: error });
+  }
+});
+
+/**
+ * @swagger
+ * /api/users/reactivate/{id}:
+ *   put:
+ *     summary: Re-activate a soft-deleted user
+ *     description: Allows re-activating a user who has been soft-deleted. Can only be accessed by authenticated users with admin privileges.
+ *     tags:
+ *       - Users
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The user ID
+ *     responses:
+ *       200:
+ *         description: User re-activated successfully.
+ *       401:
+ *         description: Unauthorized, if the user is not authenticated.
+ *       403:
+ *         description: Forbidden, if the user does not have the right privileges.
+ *       404:
+ *         description: User not found.
+ */
+router.put('/users/reactivate/:id', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(req.params.id, { isActive: true }, { new: true });
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ message: 'User re-activated successfully', user: updatedUser });
+  } catch (error) {
+    res.status(500).json({ error: 'Error re-activating user', details: error });
+  }
+});
+
 module.exports = router;

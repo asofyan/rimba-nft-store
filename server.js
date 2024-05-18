@@ -33,10 +33,7 @@ app.use('/api', userRoutes);
 app.use('/api', nftRoutes);  
 
 // Connect to MongoDB
-mongoose.connect('mongodb://localhost/rimba-nft-store', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-}).then(() => {
+mongoose.connect('mongodb://localhost/rimba-nft-store').then(() => {
     console.log('Connected to MongoDB');
 }).catch(err => {
     console.error('Error connecting to MongoDB:', err.message);
