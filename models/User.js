@@ -5,42 +5,46 @@ const bcrypt = require('bcrypt');
 const userSchema = new mongoose.Schema({
   username: {
     type: String,
-    unique: true, // Ensure usernames are unique
-    required: [true, 'Username is required'], // Custom error message for validation
+    unique: true,
+    required: [true, 'Username is required'],
     minlength: [3, 'Username must be at least 3 characters long'],
   },
   password: {
     type: String,
-    required: [true, 'Password is required'], // Custom error message for validation
+    required: [true, 'Password is required'],
     minlength: [6, 'Password must be at least 6 characters long'],
   },
   role: {
     type: String,
-    enum: ['Admin', 'Client'], // Specify the allowable roles
-    default: 'Client' // Default role if none specified
+    enum: ['Admin', 'Client'],
+    default: 'Client',
+  },
+  isActive: {
+    type: Boolean,
+    default: true,
   },
   createdAt: {
     type: Date,
-    default: Date.now, // Default value for the field
+    default: Date.now,
   },
 });
 
 // Hash password before saving the user
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) {
-    return next(); // Skip hashing if the password hasn't changed
+    return next();
   }
   try {
-    this.password = await bcrypt.hash(this.password, 10); // Hash the password with bcrypt
+    this.password = await bcrypt.hash(this.password, 10);
     next();
   } catch (err) {
-    next(err); // Pass the error to the next middleware
+    next(err);
   }
 });
 
 // Method to validate the password
 userSchema.methods.validatePassword = async function (password) {
-  return await bcrypt.compare(password, this.password); // Compare the hashed passwords
+  return await bcrypt.compare(password, this.password);
 };
 
 // Export the user model

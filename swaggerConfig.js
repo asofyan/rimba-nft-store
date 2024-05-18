@@ -39,10 +39,48 @@ module.exports = {
               type: 'string',
               description: 'Role of the user',
             },
+            isActive: {
+              type: 'boolean',
+              description: 'Status of the user account',
+            },
             createdAt: {
               type: 'string',
               format: 'date-time',
               description: 'Creation date of the user',
+            },
+          },
+        },
+        NFT: {
+          type: 'object',
+          properties: {
+            _id: {
+              type: 'string',
+              description: 'NFT ID',
+            },
+            ownerId: {
+              type: 'string',
+              description: 'Owner User ID',
+            },
+            name: {
+              type: 'string',
+              description: 'Name of the NFT',
+            },
+            description: {
+              type: 'string',
+              description: 'Description of the NFT',
+            },
+            imageUrl: {
+              type: 'string',
+              description: 'URL of the NFT image',
+            },
+            bidPrice: {
+              type: 'number',
+              description: 'Bid price of the NFT',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Creation date of the NFT',
             },
           },
         },
