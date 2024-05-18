@@ -1,9 +1,11 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+require('dotenv').config();
 const User = require('../models/User'); // Assuming User model is in a models folder
 
 const router = express.Router(); // Use router for defining endpoints
+const JWT_SECRET = process.env.JWT_SECRET
 
 // Registration Endpoint
 /**
@@ -22,6 +24,8 @@ const router = express.Router(); // Use router for defining endpoints
  *                 type: string
  *               password:
  *                 type: string
+ *               role:
+ *                 type: string
  *     responses:
  *       201:
  *         description: User registered successfully.
@@ -29,25 +33,31 @@ const router = express.Router(); // Use router for defining endpoints
  *         description: User registration failed due to missing data or other issues.
  */
 router.post('/register', async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, role } = req.body;
 
   if (!username || !password) {
-    return res.status(400).json({ error: 'Missing username or password' });
+    return res.status(400).json({ error: 'Username and password are required' });
   }
-
-  const hashedPassword = await bcrypt.hash(password, 10);
 
   try {
-    const newUser = new User({ username, password: hashedPassword });
-    await newUser.save();
+    const existingUser = await User.findOne({ username }); // Check if the user already exists
+    if (existingUser) {
+      return res.status(400).json({ error: 'Username already taken' });
+    }
 
-    res.status(201).json({ message: 'User registered successfully' });
-  } catch (error) {
-    return res.status(400).json({ error: 'User registration failed' });
+    const newUser = new User({
+      username,
+      password,
+      role  // Pass the role to the user model
+    });
+    
+    await newUser.save(); // Save the new user in the database
+
+    res.status(201).json({ message: 'User registered successfully', role: newUser.role });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error', details: err.message });
   }
 });
-
-// Login Endpoint
 /**
  * @swagger
  * /login:
@@ -67,21 +77,42 @@ router.post('/register', async (req, res) => {
  *     responses:
  *       200:
  *         description: Successful login, returns a JWT token.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
  *       401:
  *         description: Invalid credentials.
  */
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
-  const user = await User.findOne({ username });
+  try {
+    const user = await User.findOne({ username });
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
 
-  if (user && (await bcrypt.compare(password, user.password))) {
-    const token = jwt.sign({ userId: user._id }, 'secretkey', { expiresIn: '1h' });
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
 
-    res.status(200).json({ token });
-  } else {
-    res.status(401).json({ error: 'Invalid credentials' });
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    res.json({ token });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error during authentication' });
   }
 });
 
-module.exports = router; // Export the router
+module.exports = router;
+

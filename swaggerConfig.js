@@ -1,18 +1,58 @@
-// swaggerConfig.js
 module.exports = {
-    swaggerDefinition: {
-      openapi: '3.0.0',
-      info: {
-        title: 'Rimba NFT Store API',
-        version: '1.0.0',
-        description: 'API documentation for the Rimba NFT Store.',
-      },
-      servers: [
-        {
-          url: 'http://localhost:3000', // Base URL for your backend server
-        },
-      ],
+  swaggerDefinition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'Rimba NFT Store API',
+      version: '1.0.0',
+      description: 'API documentation for the Rimba NFT Store.',
     },
-    apis: ['./routes/*.js'], // Path to your API route files for Swagger to scan
-  };
-  
+    servers: [
+      {
+        url: 'http://localhost:3000', // Base URL for your backend server
+      },
+    ],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+      },
+      schemas: {
+        User: {
+          type: 'object',
+          properties: {
+            _id: {
+              type: 'string',
+              description: 'User ID',
+            },
+            username: {
+              type: 'string',
+              description: 'Username of the user',
+            },
+            password: {
+              type: 'string',
+              description: 'User password',
+            },
+            role: {
+              type: 'string',
+              description: 'Role of the user',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Creation date of the user',
+            },
+          },
+        },
+      },
+    },
+    security: [
+      {
+        bearerAuth: [],
+      },
+    ],
+  },
+  apis: ['./routes/*.js'], // Path to the API docs
+};
