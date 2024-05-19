@@ -36,14 +36,14 @@ Rimba NFT Store Backend is a Node.js application that provides APIs for user aut
 
 1. **Clone the Repository:**
 
-   ```bash
+   ```
    git clone https://github.com/yourusername/rimba-nft-store.git
    cd rimba-nft-store
    ```
 
 2. **Install Dependencies:**
 
-   ```bash
+   ```
    npm install
    ```
 
@@ -51,7 +51,7 @@ Rimba NFT Store Backend is a Node.js application that provides APIs for user aut
 
    Create a `.env` file in the root directory and add the following environment variables:
 
-   ```plaintext
+   ```
    GANACHE_RPC_URL=http://127.0.0.1:8545
    CONTRACT_ADDRESS=0xC543FEe26104D648eDD91eA9a20622239F2dB89f
    PRIVATE_KEY=0xYourPrivateKey  # Replace with your actual private key
@@ -61,14 +61,14 @@ Rimba NFT Store Backend is a Node.js application that provides APIs for user aut
 
 4. **Compile and Deploy Smart Contract:**
 
-   ```bash
+   ```
    truffle compile
    truffle migrate --network development
    ```
 
 5. **Run the Application:**
 
-   ```bash
+   ```
    npm start
    ```
 
@@ -98,7 +98,7 @@ http://localhost:3000/docs
 
 #### Register User
 
-```bash
+```
 curl -X POST http://localhost:3000/register \
   -H 'Content-Type: application/json' \
   -d '{
@@ -110,7 +110,7 @@ curl -X POST http://localhost:3000/register \
 
 #### Login User
 
-```bash
+```
 curl -X POST http://localhost:3000/login \
   -H 'Content-Type: application/json' \
   -d '{
@@ -121,7 +121,7 @@ curl -X POST http://localhost:3000/login \
 
 #### Upload NFT Asset
 
-```bash
+```
 curl -X POST http://localhost:3000/api/nfts \
   -H 'Authorization: Bearer YOUR_JWT_TOKEN' \
   -F "name=Test NFT" \
@@ -133,7 +133,7 @@ curl -X POST http://localhost:3000/api/nfts \
 
 #### Mint NFT
 
-```bash
+```
 curl -X POST http://localhost:3000/api/nfts/mint \
   -H 'Authorization: Bearer YOUR_JWT_TOKEN' \
   -H 'Content-Type: application/json' \
@@ -145,14 +145,14 @@ curl -X POST http://localhost:3000/api/nfts/mint \
 
 #### List All NFTs
 
-```bash
+```
 curl -X GET http://localhost:3000/api/nfts \
   -H 'Authorization: Bearer YOUR_JWT_TOKEN'
 ```
 
 #### Update NFT Asset
 
-```bash
+```
 curl -X PUT http://localhost:3000/api/nfts/ID_OF_NFT \
   -H 'Authorization: Bearer YOUR_JWT_TOKEN' \
   -H 'Content-Type: application/json' \
@@ -194,6 +194,9 @@ rimba-nft-store/
 ├── ethereum.js
 └── README.md
 ```
+
+## Author
+Ahmad Sofyan - asofyan [a] gmail [dot] com Twitter/Telegram: @asofyan
 
 ## Contributing
 
