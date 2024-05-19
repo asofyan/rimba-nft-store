@@ -1,0 +1,8 @@
+{
+  "name": "NFT Find Us",
+  "description": "Find us and mint us",
+  "image": "http://localhost:3000/uploads/image-1716107663924-149643058.jpg",
+  "attributes": {
+    "color": "blue"
+  }
+}

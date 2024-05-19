@@ -24,6 +24,7 @@
     "nodemon": "^3.1.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.0",
-    "truffle": "^5.11.5"
+    "truffle": "^5.11.5",
+    "web3": "^4.8.0"
   }
 }

@@ -4,6 +4,7 @@ const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
 const path = require('path');
+require('dotenv').config();
 
 // Importing route handlers
 const authRoutes = require('./routes/authRoutes');
@@ -24,8 +25,9 @@ const swaggerSpec = swaggerJsdoc(swaggerConfig);
 // Serve Swagger docs
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// Serve the uploads directory
+// Serve the uploads and metadata directories
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/metadata', express.static(path.join(__dirname, 'metadata')));
 
 // Use the imported routes
 app.use('', authRoutes);  
@@ -33,7 +35,10 @@ app.use('/api', userRoutes);
 app.use('/api', nftRoutes);  
 
 // Connect to MongoDB
-mongoose.connect('mongodb://localhost/rimba-nft-store').then(() => {
+mongoose.connect('mongodb://localhost/rimba-nft-store', {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+}).then(() => {
     console.log('Connected to MongoDB');
 }).catch(err => {
     console.error('Error connecting to MongoDB:', err.message);
