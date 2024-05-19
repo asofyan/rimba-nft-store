@@ -37,7 +37,7 @@ Rimba NFT Store Backend is a Node.js application that provides APIs for user aut
 1. **Clone the Repository:**
 
    ```
-   git clone https://github.com/yourusername/rimba-nft-store.git
+   git clone https://github.com/asofyan/rimba-nft-store.git
    cd rimba-nft-store
    ```
 
