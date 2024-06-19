@@ -13,6 +13,8 @@ const contract = new web3.eth.Contract(contractABI, contractAddress);
 const account = web3.eth.accounts.privateKeyToAccount(process.env.PRIVATE_KEY);
 web3.eth.accounts.wallet.add(account);
 
+console.log(`Using account: ${account.address}`);  // Log the address
+
 module.exports = {
   mintNFT: async function (toAddress, metadataURI) {
     try {
@@ -21,16 +23,16 @@ module.exports = {
       }
 
       const tx = contract.methods.mint(toAddress, metadataURI);
-      const gas = await tx.estimateGas({ from: account.address });
-      const gasPrice = await web3.eth.getGasPrice();
+      const gas = BigInt(await tx.estimateGas({ from: account.address }));
+      const gasPrice = BigInt(await web3.eth.getGasPrice());
       const data = tx.encodeABI();
-      const nonce = await web3.eth.getTransactionCount(account.address);
-      const balance = await web3.eth.getBalance(account.address);
+      const nonce = BigInt(await web3.eth.getTransactionCount(account.address));
+      const balance = BigInt(await web3.eth.getBalance(account.address));
 
       const transactionCost = gas * gasPrice;
-      console.log(`Gas: ${gas}, Gas Price: ${gasPrice}, Transaction Cost: ${transactionCost}, Balance: ${balance}`);
+      console.log(`Gas: ${gas.toString()}, Gas Price: ${gasPrice.toString()}, Transaction Cost: ${transactionCost.toString()}, Balance: ${balance.toString()}`);
 
-      if (parseInt(balance) < transactionCost) {
+      if (balance < transactionCost) {
         throw new Error('Insufficient funds for gas * price + value');
       }
 
@@ -38,9 +40,9 @@ module.exports = {
         from: account.address,
         to: contractAddress,
         data: data,
-        gas,
-        gasPrice,
-        nonce,
+        gas: gas.toString(),
+        gasPrice: gasPrice.toString(),
+        nonce: nonce.toString(),
         chainId: 1337  // Ganache local network ID
       };
 

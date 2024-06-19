@@ -39,6 +39,8 @@ const router = express.Router();
  *       500:
  *         description: Server error
  */
+
+
 router.get('/users', authenticateToken, async (req, res) => {
   try {
     const users = await User.find();
@@ -47,6 +49,7 @@ router.get('/users', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Server error', details: error.message });
   }
 });
+
 
 /**
  * @swagger
