@@ -26,38 +26,47 @@ const JWT_SECRET = process.env.JWT_SECRET
  *                 type: string
  *               role:
  *                 type: string
+ *               ethAddress:
+ *                 type: string
  *     responses:
  *       201:
  *         description: User registered successfully.
  *       400:
  *         description: User registration failed due to missing data or other issues.
  */
-router.post('/register', async (req, res) => {
-  const { username, password, role } = req.body;
 
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Username and password are required' });
+
+// Registration Endpoint
+router.post('/register', async (req, res) => {
+  const { username, password, role, ethAddress } = req.body;
+
+  if (!username || !password || !ethAddress) {
+    return res.status(400).json({ error: 'Username, password, and Ethereum address are required' });
   }
 
   try {
-    const existingUser = await User.findOne({ username }); // Check if the user already exists
+    const existingUser = await User.findOne({ username });
     if (existingUser) {
       return res.status(400).json({ error: 'Username already taken' });
     }
 
+    const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = new User({
       username,
-      password,
-      role  // Pass the role to the user model
+      password: hashedPassword,
+      role,
+      ethAddress  // Store the user's Ethereum address
     });
-    
-    await newUser.save(); // Save the new user in the database
 
-    res.status(201).json({ message: 'User registered successfully', role: newUser.role });
+    await newUser.save();
+    res.status(201).json({ message: 'User registered successfully' });
   } catch (err) {
     res.status(500).json({ error: 'Server error', details: err.message });
   }
 });
+
+
+
 /**
  * @swagger
  * /login:

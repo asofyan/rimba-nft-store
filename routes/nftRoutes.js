@@ -6,6 +6,7 @@ const fs = require('fs');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const ethereum = require('../ethereum');
+const User = require('../models/User'); // Assuming User model is in a models folder
 
 dotenv.config();
 
@@ -124,8 +125,6 @@ router.post('/nfts', authenticateToken, upload.single('image'), async (req, res)
  *           schema:
  *             type: object
  *             properties:
- *               toAddress:
- *                 type: string
  *               metadataURI:
  *                 type: string
  *     responses:
@@ -140,8 +139,15 @@ router.post('/nfts', authenticateToken, upload.single('image'), async (req, res)
  */
 router.post('/nfts/mint', authenticateToken, async (req, res) => {
   try {
-    const { toAddress, metadataURI } = req.body;
-    const receipt = await ethereum.mintNFT(toAddress, metadataURI);  // Ensure both parameters are passed
+    const { metadataURI } = req.body;
+
+    // Retrieve the authenticated user's Ethereum address
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    const receipt = await ethereum.mintNFT(user.ethAddress, metadataURI);  // Ensure both parameters are passed
     
     // Update the NFT record as minted
     await NFT.findOneAndUpdate({ metadataURL: metadataURI }, { minted: true });

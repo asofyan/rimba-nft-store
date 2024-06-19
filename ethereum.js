@@ -16,11 +16,23 @@ web3.eth.accounts.wallet.add(account);
 module.exports = {
   mintNFT: async function (toAddress, metadataURI) {
     try {
-      const tx = contract.methods.mint(toAddress, metadataURI);  // Ensure both parameters are passed
+      if (!web3.utils.isAddress(toAddress)) {
+        throw new Error(`Invalid Ethereum address: ${toAddress}`);
+      }
+
+      const tx = contract.methods.mint(toAddress, metadataURI);
       const gas = await tx.estimateGas({ from: account.address });
       const gasPrice = await web3.eth.getGasPrice();
       const data = tx.encodeABI();
       const nonce = await web3.eth.getTransactionCount(account.address);
+      const balance = await web3.eth.getBalance(account.address);
+
+      const transactionCost = gas * gasPrice;
+      console.log(`Gas: ${gas}, Gas Price: ${gasPrice}, Transaction Cost: ${transactionCost}, Balance: ${balance}`);
+
+      if (parseInt(balance) < transactionCost) {
+        throw new Error('Insufficient funds for gas * price + value');
+      }
 
       const txData = {
         from: account.address,

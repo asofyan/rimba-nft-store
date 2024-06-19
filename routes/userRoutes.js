@@ -1,6 +1,6 @@
 const express = require('express');
-const User = require('../models/User');
 const authenticateToken = require('../middleware/authenticateToken');
+const User = require('../models/User'); // Assuming User model is in a models folder
 
 const router = express.Router();
 
@@ -8,60 +8,56 @@ const router = express.Router();
  * @swagger
  * /api/users:
  *   get:
- *     summary: Retrieve a list of active registered users
- *     description: Returns a list of users excluding those who have been soft-deleted. Can only be accessed by authenticated users with admin privileges.
+ *     summary: Get list of all users excluding non-active users
+ *     description: Retrieve a list of all active users.
  *     tags:
  *       - Users
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: A list of active users.
+ *         description: List of active users
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
- *                 $ref: '#/components/schemas/User'
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                   username:
+ *                     type: string
+ *                   role:
+ *                     type: string
+ *                   ethAddress:
+ *                     type: string
+ *                   active:
+ *                     type: boolean
  *       401:
- *         description: Unauthorized, if the user is not authenticated.
- *       403:
- *         description: Forbidden, if the user does not have the right privileges.
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
  */
 router.get('/users', authenticateToken, async (req, res) => {
   try {
-    if (req.user.role !== 'Admin') {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    const users = await User.find({ isActive: true });
-    res.json(users);
+    const users = await User.find();
+    res.status(200).json(users);
   } catch (error) {
-    res.status(500).json({ error: 'Error retrieving users', details: error });
+    res.status(500).json({ error: 'Server error', details: error.message });
   }
 });
 
-module.exports = router;
-
-
 /**
  * @swagger
- * /api/users/{id}:
+ * /api/users:
  *   put:
- *     summary: Update a user's details
- *     description: Update user details, can only be accessed by authenticated users with admin privileges.
+ *     summary: Update user data
+ *     description: Update the details of the authenticated user.
  *     tags:
  *       - Users
  *     security:
  *       - bearerAuth: []
- *       - oauth2: ['write:users']
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: The user ID
  *     requestBody:
  *       required: true
  *       content:
@@ -71,129 +67,94 @@ module.exports = router;
  *             properties:
  *               username:
  *                 type: string
+ *               password:
+ *                 type: string
  *               role:
+ *                 type: string
+ *               ethAddress:
  *                 type: string
  *     responses:
  *       200:
- *         description: User updated successfully.
+ *         description: User updated successfully
  *       400:
- *         description: Invalid input.
+ *         description: Invalid input
  *       401:
- *         description: Unauthorized, if the user is not authenticated.
- *       403:
- *         description: Forbidden, if the user does not have the right privileges.
- *       404:
- *         description: User not found.
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
  */
-router.put('/users/:id', authenticateToken, async (req, res) => {
+router.put('/users', authenticateToken, async (req, res) => {
   try {
-    if (req.user.role !== 'Admin') {
-      return res.status(403).json({ error: 'Access denied' });
-    }
+    const { username, password, role, ethAddress } = req.body;
 
-    const { username, role } = req.body;
-    const updatedUser = await User.findByIdAndUpdate(req.params.id, { username, role }, { new: true });
-
-    if (!updatedUser) {
+    const user = await User.findById(req.user.id);
+    if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json({ message: 'User updated successfully', user: updatedUser });
+    if (username) user.username = username;
+    if (password) user.password = await bcrypt.hash(password, 10);
+    if (role) user.role = role;
+    if (ethAddress) user.ethAddress = ethAddress;
+
+    await user.save();
+
+    res.status(200).json({ message: 'User updated successfully', user });
   } catch (error) {
-    res.status(400).json({ error: 'Invalid input', details: error });
+    res.status(500).json({ error: 'Server error', details: error.message });
   }
 });
 
 /**
  * @swagger
- * /api/users/{id}:
- *   delete:
- *     summary: Soft delete a user
- *     description: Soft delete a user, can only be accessed by authenticated users with admin privileges.
- *     tags:
- *       - Users
- *     security:
- *       - bearerAuth: []
- *       - oauth2: ['write:users']
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: The user ID
- *     responses:
- *       200:
- *         description: User soft-deleted successfully.
- *       401:
- *         description: Unauthorized, if the user is not authenticated.
- *       403:
- *         description: Forbidden, if the user does not have the right privileges.
- *       404:
- *         description: User not found.
- */
-router.delete('/users/:id', authenticateToken, async (req, res) => {
-  try {
-    if (req.user.role !== 'Admin') {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    const updatedUser = await User.findByIdAndUpdate(req.params.id, { isActive: false }, { new: true });
-
-    if (!updatedUser) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.json({ message: 'User soft-deleted successfully', user: updatedUser });
-  } catch (error) {
-    res.status(500).json({ error: 'Error updating user', details: error });
-  }
-});
-
-/**
- * @swagger
- * /api/users/deactivated:
+ * /api/users/inactive:
  *   get:
- *     summary: Retrieve a list of soft-deleted users
- *     description: Returns a list of users who have been soft-deleted. Can only be accessed by authenticated users with admin privileges.
+ *     summary: Get list of all soft deleted users
+ *     description: Retrieve a list of all soft deleted users.
  *     tags:
  *       - Users
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: A list of soft-deleted users.
+ *         description: List of soft deleted users
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
- *                 $ref: '#/components/schemas/User'
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                   username:
+ *                     type: string
+ *                   role:
+ *                     type: string
+ *                   ethAddress:
+ *                     type: string
+ *                   active:
+ *                     type: boolean
  *       401:
- *         description: Unauthorized, if the user is not authenticated.
- *       403:
- *         description: Forbidden, if the user does not have the right privileges.
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
  */
-
-router.get('/users/deactivated', authenticateToken, async (req, res) => {
+router.get('/users/inactive', authenticateToken, async (req, res) => {
   try {
-    if (req.user.role !== 'Admin') {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    const users = await User.find({ isActive: false });
-    res.json(users);
+    const users = await User.find({ active: false });
+    res.status(200).json(users);
   } catch (error) {
-    res.status(500).json({ error: 'Error retrieving users', details: error });
+    res.status(500).json({ error: 'Server error', details: error.message });
   }
 });
 
 /**
  * @swagger
- * /api/users/reactivate/{id}:
+ * /api/users/{id}/reactivate:
  *   put:
- *     summary: Re-activate a soft-deleted user
- *     description: Allows re-activating a user who has been soft-deleted. Can only be accessed by authenticated users with admin privileges.
+ *     summary: Reactivate a soft deleted user
+ *     description: Reactivate a soft deleted user by their ID.
  *     tags:
  *       - Users
  *     security:
@@ -207,29 +168,31 @@ router.get('/users/deactivated', authenticateToken, async (req, res) => {
  *         description: The user ID
  *     responses:
  *       200:
- *         description: User re-activated successfully.
+ *         description: User reactivated successfully
+ *       400:
+ *         description: Invalid input
  *       401:
- *         description: Unauthorized, if the user is not authenticated.
- *       403:
- *         description: Forbidden, if the user does not have the right privileges.
+ *         description: Unauthorized
  *       404:
- *         description: User not found.
+ *         description: User not found
+ *       500:
+ *         description: Server error
  */
-router.put('/users/reactivate/:id', authenticateToken, async (req, res) => {
+router.put('/users/:id/reactivate', authenticateToken, async (req, res) => {
   try {
-    if (req.user.role !== 'Admin') {
-      return res.status(403).json({ error: 'Access denied' });
-    }
+    const { id } = req.params;
 
-    const updatedUser = await User.findByIdAndUpdate(req.params.id, { isActive: true }, { new: true });
-
-    if (!updatedUser) {
+    const user = await User.findById(id);
+    if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json({ message: 'User re-activated successfully', user: updatedUser });
+    user.active = true;
+    await user.save();
+
+    res.status(200).json({ message: 'User reactivated successfully', user });
   } catch (error) {
-    res.status(500).json({ error: 'Error re-activating user', details: error });
+    res.status(500).json({ error: 'Server error', details: error.message });
   }
 });
 
