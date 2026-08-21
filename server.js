@@ -1,50 +1,25 @@
-const express = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors');
-const swaggerUi = require('swagger-ui-express');
-const swaggerJsdoc = require('swagger-jsdoc');
-const path = require('path');
 require('dotenv').config();
 
-// Importing route handlers
-const authRoutes = require('./routes/authRoutes');
-const userRoutes = require('./routes/userRoutes');
-const nftRoutes = require('./routes/nftRoutes');
+const app = require('./app');
 
-const app = express();
-const PORT = 3000;
-
-// Middleware
-app.use(express.json());
-app.use(cors());
-
-// Swagger configuration
-const swaggerConfig = require('./swaggerConfig');
-const swaggerSpec = swaggerJsdoc(swaggerConfig);
-
-// Serve Swagger docs
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-
-// Serve the uploads and metadata directories
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use('/metadata', express.static(path.join(__dirname, 'metadata')));
-
-// Use the imported routes
-app.use('', authRoutes);  
-app.use('/api', userRoutes);  
-app.use('/api', nftRoutes);  
+const PORT = process.env.PORT || 3000;
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost/rimba-nft-store';
 
 // Connect to MongoDB
-mongoose.connect('mongodb://localhost/rimba-nft-store', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-}).then(() => {
-    console.log('Connected to MongoDB');
-}).catch(err => {
+mongoose
+  .connect(MONGO_URI)
+  .then(() => {
+    console.log(`Connected to MongoDB (${MONGO_URI})`);
+  })
+  .catch((err) => {
     console.error('Error connecting to MongoDB:', err.message);
-});
+    process.exit(1);
+  });
 
 // Start the server
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+const server = app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
 });
+
+module.exports = server;

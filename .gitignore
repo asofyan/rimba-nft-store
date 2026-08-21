@@ -25,3 +25,8 @@ dist/
 build/
 /uploads/
 /metadata/
+
+# Hardhat
+eth-nft/artifacts/
+eth-nft/cache-hardhat/
+eth-nft/types/

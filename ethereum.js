@@ -3,21 +3,63 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 
-// Load contract ABI and address
-const contractABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'eth-nft/build/contracts/RimbaNFT.json'), 'utf8')).abi;
-const contractAddress = process.env.CONTRACT_ADDRESS;
+const web3 = new Web3(new Web3.providers.HttpProvider(process.env.GANACHE_RPC_URL || 'http://127.0.0.1:8545'));
 
-const web3 = new Web3(new Web3.providers.HttpProvider(process.env.GANACHE_RPC_URL));
-const contract = new web3.eth.Contract(contractABI, contractAddress);
+// Lazy-load contract: ABI & address baru dibaca saat pertama kali dipakai,
+// agar server tetap bisa start meskipun contract belum di-compile/deploy.
+let _contract = null;
 
-const account = web3.eth.accounts.privateKeyToAccount(process.env.PRIVATE_KEY);
-web3.eth.accounts.wallet.add(account);
+function getContract() {
+  if (_contract) return _contract;
 
-console.log(`Using account: ${account.address}`);  // Log the address
+  // Cari artifact: Hardhat (utama) atau Truffle (legacy)
+  const candidates = [
+    path.resolve(__dirname, 'eth-nft/artifacts/contracts/NFT.sol/RimbaNFT.json'),
+    path.resolve(__dirname, 'eth-nft/build/contracts/RimbaNFT.json'),
+  ];
+  const buildPath = candidates.find((p) => fs.existsSync(p));
+  if (!buildPath) {
+    throw new Error(
+      'Contract build not found. Run "npx hardhat compile" in eth-nft/ first.'
+    );
+  }
+
+  const contractABI = JSON.parse(fs.readFileSync(buildPath, 'utf8')).abi;
+  const contractAddress = process.env.CONTRACT_ADDRESS;
+  if (!contractAddress) {
+    throw new Error('CONTRACT_ADDRESS is not set in .env — deploy the contract first.');
+  }
+
+  _contract = new web3.eth.Contract(contractABI, contractAddress);
+  return _contract;
+}
+
+async function getAccount() {
+  if (!process.env.PRIVATE_KEY) {
+    throw new Error('PRIVATE_KEY is not set in .env');
+  }
+  const account = web3.eth.accounts.privateKeyToAccount(process.env.PRIVATE_KEY);
+  if (!web3.eth.accounts.wallet.find(a => a.address === account.address)) {
+    web3.eth.accounts.wallet.add(account);
+  }
+  return account;
+}
 
 module.exports = {
+  getBalance: async function (address) {
+    if (!web3.utils.isAddress(address)) {
+      throw new Error(`Invalid Ethereum address: ${address}`);
+    }
+    const balanceWei = await web3.eth.getBalance(address);
+    return web3.utils.fromWei(balanceWei, 'ether');
+  },
+
   mintNFT: async function (toAddress, metadataURI) {
     try {
+      const contract = getContract();
+      const account = await getAccount();
+      const contractAddress = process.env.CONTRACT_ADDRESS;
+
       if (!web3.utils.isAddress(toAddress)) {
         throw new Error(`Invalid Ethereum address: ${toAddress}`);
       }
@@ -36,6 +78,7 @@ module.exports = {
         throw new Error('Insufficient funds for gas * price + value');
       }
 
+      const chainId = await web3.eth.getChainId();
       const txData = {
         from: account.address,
         to: contractAddress,
@@ -43,7 +86,7 @@ module.exports = {
         gas: gas.toString(),
         gasPrice: gasPrice.toString(),
         nonce: nonce.toString(),
-        chainId: 1337  // Ganache local network ID
+        chainId: Number(chainId)
       };
 
       const signedTx = await web3.eth.accounts.signTransaction(txData, account.privateKey);

@@ -1,41 +1,27 @@
 const express = require('express');
-const authenticateToken = require('../middleware/authenticateToken');
-const multer = require('multer');
+const { query, body, param, validationResult } = require('express-validator');
+const { authenticateToken, requireRole } = require('../middleware/authenticateToken');
+const { upload } = require('../middleware/upload');
 const path = require('path');
 const fs = require('fs');
 const dotenv = require('dotenv');
-const mongoose = require('mongoose');
 const ethereum = require('../ethereum');
-const User = require('../models/User'); // Assuming User model is in a models folder
+const ipfs = require('../services/ipfs');
+const User = require('../models/User');
+const NFT = require('../models/NFT');
 
 dotenv.config();
 
 const router = express.Router();
 
-// Set up multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+// Middleware kecil untuk memeriksa hasil validasi express-validator
+const validate = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ error: 'Invalid input', details: errors.array().map(e => e.msg) });
   }
-});
-const upload = multer({ storage: storage });
-
-// Define the NFT Schema
-const nftSchema = new mongoose.Schema({
-  name: String,
-  description: String,
-  image: String,
-  metadataURL: String,
-  bidPrice: Number,
-  minted: { type: Boolean, default: false }
-});
-
-// Create the NFT model
-const NFT = mongoose.model('NFT', nftSchema);
+  next();
+};
 
 /**
  * @swagger
@@ -75,38 +61,70 @@ const NFT = mongoose.model('NFT', nftSchema);
  *       500:
  *         description: Server error.
  */
-router.post('/nfts', authenticateToken, upload.single('image'), async (req, res) => {
-  try {
-    const { name, description, attributes, bidPrice } = req.body;
-    const imagePath = req.file.path;
-    const metadata = {
-      name: name,
-      description: description,
-      image: `${process.env.PROJECT_URL}/${imagePath}`,
-      attributes: JSON.parse(attributes)
-    };
+router.post(
+  '/nfts',
+  authenticateToken,
+  requireRole('Admin'),
+  upload.single('image'),
+  body('name').trim().notEmpty().withMessage('Name is required'),
+  body('description').trim().notEmpty().withMessage('Description is required'),
+  validate,
+  async (req, res, next) => {
+    try {
+      const { name, description, attributes, bidPrice } = req.body;
 
-    const metadataFilename = `metadata-${Date.now()}.json`;
-    const metadataPath = path.join('metadata', metadataFilename);
-    fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
+      if (!req.file) {
+        return res.status(400).json({ error: 'Image file is required' });
+      }
 
-    const metadataURL = `${process.env.PROJECT_URL}/${metadataPath}`;
+      let parsedAttributes;
+      try {
+        parsedAttributes = attributes ? JSON.parse(attributes) : [];
+      } catch (e) {
+        return res.status(400).json({ error: 'Attributes must be valid JSON' });
+      }
 
-    const nftRecord = new NFT({
-      name: name,
-      description: description,
-      image: metadata.image,
-      metadataURL: metadataURL,
-      bidPrice: bidPrice
-    });
+      // Upload image & metadata ke IPFS jika Pinata dikonfigurasi (PINATA_JWT),
+      // fallback: simpan di disk lokal (uploads/ & metadata/).
+      const imageBuffer = await fs.promises.readFile(req.file.path);
+      const pinnedImage = await ipfs.pinFile(imageBuffer, req.file.filename);
+      const imageUrl = pinnedImage ? pinnedImage.url : `${process.env.PROJECT_URL}/${req.file.path}`;
 
-    const savedNFT = await nftRecord.save();
+      const metadata = {
+        name: name,
+        description: description,
+        image: imageUrl,
+        attributes: parsedAttributes
+      };
 
-    res.status(201).json({ message: 'NFT asset added successfully', nftRecord: savedNFT });
-  } catch (error) {
-    res.status(500).json({ error: 'Server error', details: error.message });
+      const pinnedMetadata = await ipfs.pinJSON(metadata);
+      let metadataURL;
+      if (pinnedMetadata) {
+        metadataURL = pinnedMetadata.url;
+      } else {
+        const metadataFilename = `metadata-${Date.now()}.json`;
+        const metadataPath = path.join('metadata', metadataFilename);
+        await fs.promises.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
+        metadataURL = `${process.env.PROJECT_URL}/${metadataPath}`;
+      }
+
+      const nftRecord = new NFT({
+        name: name,
+        description: description,
+        image: metadata.image,
+        metadataURL: metadataURL,
+        bidPrice: bidPrice,
+        attributes: parsedAttributes
+      });
+
+      const savedNFT = await nftRecord.save();
+
+      res.status(201).json({ message: 'NFT asset added successfully', nftRecord: savedNFT });
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
 
 /**
  * @swagger
@@ -137,26 +155,33 @@ router.post('/nfts', authenticateToken, upload.single('image'), async (req, res)
  *       500:
  *         description: Server error.
  */
-router.post('/nfts/mint', authenticateToken, async (req, res) => {
-  try {
-    const { metadataURI } = req.body;
+router.post(
+  '/nfts/mint',
+  authenticateToken,
+  requireRole('Admin'),
+  body('metadataURI').trim().notEmpty().withMessage('metadataURI is required'),
+  validate,
+  async (req, res, next) => {
+    try {
+      const { metadataURI } = req.body;
 
-    // Retrieve the authenticated user's Ethereum address
-    const user = await User.findById(req.user.id);
-    if (!user) {
-      return res.status(401).json({ error: 'User not found' });
+      // Retrieve the authenticated user's Ethereum address
+      const user = await User.findById(req.user.id);
+      if (!user) {
+        return res.status(401).json({ error: 'User not found' });
+      }
+
+      const receipt = await ethereum.mintNFT(user.ethAddress, metadataURI);
+
+      // Update the NFT record as minted
+      await NFT.findOneAndUpdate({ metadataURL: metadataURI }, { minted: true });
+
+      res.status(201).json({ message: 'NFT minted successfully', receipt });
+    } catch (error) {
+      next(error);
     }
-
-    const receipt = await ethereum.mintNFT(user.ethAddress, metadataURI);  // Ensure both parameters are passed
-    
-    // Update the NFT record as minted
-    await NFT.findOneAndUpdate({ metadataURL: metadataURI }, { minted: true });
-
-    res.status(201).json({ message: 'NFT minted successfully', receipt });
-  } catch (error) {
-    res.status(500).json({ error: 'Server error', details: error.message });
   }
-});
+);
 
 /**
  * @swagger
@@ -171,36 +196,17 @@ router.post('/nfts/mint', authenticateToken, async (req, res) => {
  *     responses:
  *       200:
  *         description: List of all uploaded NFTs with their status.
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   name:
- *                     type: string
- *                   description:
- *                     type: string
- *                   image:
- *                     type: string
- *                   metadataURL:
- *                     type: string
- *                   bidPrice:
- *                     type: number
- *                   minted:
- *                     type: boolean
  *       401:
  *         description: Unauthorized, if the user is not authenticated.
  *       500:
  *         description: Server error.
  */
-router.get('/nfts', authenticateToken, async (req, res) => {
+router.get('/nfts', authenticateToken, async (req, res, next) => {
   try {
     const nfts = await NFT.find({});
     res.status(200).json(nfts);
   } catch (error) {
-    res.status(500).json({ error: 'Server error', details: error.message });
+    next(error);
   }
 });
 
@@ -248,27 +254,44 @@ router.get('/nfts', authenticateToken, async (req, res) => {
  *       500:
  *         description: Server error.
  */
-router.put('/nfts/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, description, bidPrice, attributes } = req.body;
+router.put(
+  '/nfts/:id',
+  authenticateToken,
+  requireRole('Admin'),
+  param('id').isMongoId().withMessage('Invalid NFT ID'),
+  validate,
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { name, description, bidPrice, attributes } = req.body;
 
-    const nft = await NFT.findById(id);
-    if (!nft) {
-      return res.status(404).json({ error: 'NFT not found' });
+      let parsedAttributes;
+      if (attributes !== undefined) {
+        try {
+          parsedAttributes = JSON.parse(attributes);
+        } catch (e) {
+          return res.status(400).json({ error: 'Attributes must be valid JSON' });
+        }
+      }
+
+      const nft = await NFT.findById(id);
+      if (!nft) {
+        return res.status(404).json({ error: 'NFT not found' });
+      }
+
+      // Partial update: only overwrite fields that are provided
+      if (name !== undefined) nft.name = name;
+      if (description !== undefined) nft.description = description;
+      if (bidPrice !== undefined) nft.bidPrice = bidPrice;
+      if (parsedAttributes !== undefined) nft.attributes = parsedAttributes;
+
+      await nft.save();
+
+      res.status(200).json({ message: 'NFT asset updated successfully', nftRecord: nft });
+    } catch (error) {
+      next(error);
     }
-
-    nft.name = name;
-    nft.description = description;
-    nft.bidPrice = bidPrice;
-    nft.attributes = JSON.parse(attributes);
-
-    await nft.save();
-
-    res.status(200).json({ message: 'NFT asset updated successfully', nftRecord: nft });
-  } catch (error) {
-    res.status(500).json({ error: 'Server error', details: error.message });
   }
-});
+);
 
 module.exports = router;

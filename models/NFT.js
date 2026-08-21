@@ -1,32 +1,15 @@
 const mongoose = require('mongoose');
 
+// Define the NFT Schema
 const nftSchema = new mongoose.Schema({
-  ownerId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-  },
-  name: {
-    type: String,
-    required: [true, 'Name is required'],
-  },
-  description: {
-    type: String,
-  },
-  imageUrl: {
-    type: String,
-    required: [true, 'Image URL is required'],
-  },
-  bidPrice: {
-    type: Number,
-    required: [true, 'Bid price is required'],
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
+  name: String,
+  description: String,
+  image: String,
+  metadataURL: String,
+  bidPrice: Number,
+  attributes: mongoose.Schema.Types.Mixed,
+  minted: { type: Boolean, default: false }
 });
 
 const NFT = mongoose.model('NFT', nftSchema);
-
 module.exports = NFT;

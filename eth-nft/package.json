@@ -1,0 +1,12 @@
+{
+  "name": "rimba-nft-contracts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Smart contracts untuk Rimba NFT Store (Hardhat)",
+  "scripts": {
+    "test": "hardhat test",
+    "compile": "hardhat compile",
+    "deploy:ganache": "hardhat run scripts/deploy.js --network ganache"
+  }
+}
