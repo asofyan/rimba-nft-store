@@ -3,6 +3,7 @@ const bcrypt = require('bcrypt');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/authenticateToken');
 const User = require('../models/User');
+const ethereum = require('../ethereum');
 
 const router = express.Router();
 
@@ -19,7 +20,7 @@ const validate = (req, res, next) => {
  * @swagger
  * /api/users:
  *   get:
- *     summary: Get list of all active users (Admin only)
+ *     summary: Get list of all active users (SuperAdmin only)
  *     description: Retrieve a list of all active users. Passwords are excluded.
  *     tags:
  *       - Users
@@ -31,17 +32,76 @@ const validate = (req, res, next) => {
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: Forbidden (requires Admin role)
+ *         description: Forbidden (requires SuperAdmin role)
  *       500:
  *         description: Server error
  */
-router.get('/users', authenticateToken, requireRole('Admin'), async (req, res) => {
+router.get('/users', authenticateToken, requireRole('SuperAdmin'), async (req, res) => {
   try {
     const users = await User.find({ isActive: true }).select('-password');
     res.status(200).json(users);
   } catch (error) {
     console.error('GET /users failed:', error);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/users/status:
+ *   get:
+ *     summary: Status of every user (SuperAdmin only)
+ *     description: >
+ *       One row per user combining database state (role, active flag, last login)
+ *       with on-chain state (ETH balance, number of RimbaNFT tokens held).
+ *       Makes two RPC calls per user.
+ *     tags:
+ *       - Users
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Array of user status rows
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (requires SuperAdmin role)
+ *       500:
+ *         description: Server error
+ */
+router.get('/users/status', authenticateToken, requireRole('SuperAdmin'), async (req, res, next) => {
+  try {
+    const users = await User.find({}).select('-password').sort({ createdAt: 1 });
+
+    const rows = await Promise.all(
+      users.map(async (user) => {
+        // Data on-chain tidak boleh menggagalkan seluruh endpoint
+        let balance = null;
+        try {
+          balance = await ethereum.getBalance(user.ethAddress);
+        } catch (error) {
+          balance = null;
+        }
+
+        const nftCount = await ethereum.getNftCount(user.ethAddress);
+
+        return {
+          id: user._id,
+          username: user.username,
+          role: user.role,
+          isActive: user.isActive,
+          ethAddress: user.ethAddress,
+          balance,
+          nftCount,
+          createdAt: user.createdAt,
+          lastLoginAt: user.lastLoginAt,
+        };
+      })
+    );
+
+    res.status(200).json(rows);
+  } catch (error) {
+    next(error);
   }
 });
 
@@ -114,7 +174,7 @@ router.put(
  * @swagger
  * /api/users/inactive:
  *   get:
- *     summary: Get list of all soft deleted users (Admin only)
+ *     summary: Get list of all soft deleted users (SuperAdmin only)
  *     tags:
  *       - Users
  *     security:
@@ -125,11 +185,11 @@ router.put(
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: Forbidden (requires Admin role)
+ *         description: Forbidden (requires SuperAdmin role)
  *       500:
  *         description: Server error
  */
-router.get('/users/inactive', authenticateToken, requireRole('Admin'), async (req, res) => {
+router.get('/users/inactive', authenticateToken, requireRole('SuperAdmin'), async (req, res) => {
   try {
     const users = await User.find({ isActive: false }).select('-password');
     res.status(200).json(users);
@@ -143,7 +203,7 @@ router.get('/users/inactive', authenticateToken, requireRole('Admin'), async (re
  * @swagger
  * /api/users/{id}:
  *   delete:
- *     summary: Soft delete a user (Admin only)
+ *     summary: Soft delete a user (SuperAdmin only)
  *     description: Deactivate a user by setting isActive to false.
  *     tags:
  *       - Users
@@ -163,13 +223,13 @@ router.get('/users/inactive', authenticateToken, requireRole('Admin'), async (re
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: Forbidden (requires Admin role)
+ *         description: Forbidden (requires SuperAdmin role)
  *       404:
  *         description: User not found
  *       500:
  *         description: Server error
  */
-router.delete('/users/:id', authenticateToken, requireRole('Admin'), async (req, res) => {
+router.delete('/users/:id', authenticateToken, requireRole('SuperAdmin'), async (req, res) => {
   try {
     if (req.params.id === String(req.user.id)) {
       return res.status(400).json({ error: 'Cannot deactivate your own account' });
@@ -194,7 +254,7 @@ router.delete('/users/:id', authenticateToken, requireRole('Admin'), async (req,
  * @swagger
  * /api/users/{id}/reactivate:
  *   put:
- *     summary: Reactivate a soft deleted user (Admin only)
+ *     summary: Reactivate a soft deleted user (SuperAdmin only)
  *     tags:
  *       - Users
  *     security:
@@ -212,13 +272,13 @@ router.delete('/users/:id', authenticateToken, requireRole('Admin'), async (req,
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: Forbidden (requires Admin role)
+ *         description: Forbidden (requires SuperAdmin role)
  *       404:
  *         description: User not found
  *       500:
  *         description: Server error
  */
-router.put('/users/:id/reactivate', authenticateToken, requireRole('Admin'), async (req, res) => {
+router.put('/users/:id/reactivate', authenticateToken, requireRole('SuperAdmin'), async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) {

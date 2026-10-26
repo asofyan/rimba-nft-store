@@ -132,6 +132,10 @@ router.post(
         { expiresIn: '1h' }
       );
 
+      // Catat login terakhir — dipakai halaman status milik SuperAdmin
+      user.lastLoginAt = new Date();
+      await user.save();
+
       res.json({ token });
     } catch (err) {
       console.error('Login failed:', err);

@@ -15,13 +15,13 @@ Hardhat 3.21 · OpenZeppelin 5.0.2
 | 2 | Coarse RBAC (`Admin` / `Client`), rate limiting, validation, central error handler | ✅ done |
 | 3 | NFT asset upload → metadata, gallery, on-chain mint (`RimbaNFT`) | ✅ done |
 | 4 | IPFS/Pinata as optional storage, Hardhat project, 18 API + 5 contract tests, CI | ✅ done |
-| 5 | 3-tier RBAC (`SuperAdmin` / `Subscriber` / `Client`) + user-status endpoint | 🚧 in progress |
+| 5 | 3-tier RBAC (`SuperAdmin` / `Subscriber` / `Client`) + user-status endpoint | ✅ done |
 | 6 | Marketplace: list/bid/buy/transfer (contract + API + UI) | 📋 planned |
 
 ## What works today (verifiable)
 
 ```bash
-npm test            # 18 API tests (Jest + Supertest, needs mongod)
+npm test            # 24 API tests (Jest + Supertest, needs mongod)
 npm run test:contracts   # 5 contract tests (in-memory Hardhat network)
 ```
 
@@ -51,6 +51,16 @@ curl -s -H "Authorization: Bearer $TOKEN" localhost:3000/api/wallet/balance
 
 Newest first. One entry per decision that a future maintainer could otherwise
 re-litigate.
+
+**2026-10-26 — Phase 5 implemented: 3-tier RBAC + `GET /api/users/status`.**
+`Admin` was migrated to `SuperAdmin` (only `admin`) or `Subscriber`
+(`admin1`-`admin5`) by `scripts/migrateRoles.js`. `GET /api/users/status`
+combines DB state with on-chain reads: `balance` (ETH) and `nftCount`
+(`balanceOf`, i.e. tokens actually held). Two RPC calls per user — acceptable for
+single-digit user counts, revisit with caching when that changes. `lastLoginAt`
+was added to the User schema and is written on every successful login.
+Upload/edit/mint now accept `SuperAdmin` + `Subscriber`; user administration is
+`SuperAdmin` only. Tests: 24 passing (was 18).
 
 **2026-10-26 — 3-tier RBAC instead of a boolean admin flag.**
 `admin` becomes `SuperAdmin` (only role that can list/deactivate users and read

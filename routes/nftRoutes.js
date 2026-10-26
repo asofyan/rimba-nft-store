@@ -64,7 +64,7 @@ const validate = (req, res, next) => {
 router.post(
   '/nfts',
   authenticateToken,
-  requireRole('Admin'),
+  requireRole('SuperAdmin', 'Subscriber'),
   upload.single('image'),
   body('name').trim().notEmpty().withMessage('Name is required'),
   body('description').trim().notEmpty().withMessage('Description is required'),
@@ -158,7 +158,7 @@ router.post(
 router.post(
   '/nfts/mint',
   authenticateToken,
-  requireRole('Admin'),
+  requireRole('SuperAdmin', 'Subscriber'),
   body('metadataURI').trim().notEmpty().withMessage('metadataURI is required'),
   validate,
   async (req, res, next) => {
@@ -257,7 +257,7 @@ router.get('/nfts', authenticateToken, async (req, res, next) => {
 router.put(
   '/nfts/:id',
   authenticateToken,
-  requireRole('Admin'),
+  requireRole('SuperAdmin', 'Subscriber'),
   param('id').isMongoId().withMessage('Invalid NFT ID'),
   validate,
   async (req, res, next) => {

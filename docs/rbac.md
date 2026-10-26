@@ -18,12 +18,13 @@ the JWT payload at login.
 
 | Step | Status |
 |---|---|
-| Two-role model (`Admin` / `Client`) | ✅ done — this is what the code ships today |
-| Three-role model (`SuperAdmin` / `Subscriber` / `Client`) | 🚧 being implemented |
-| `GET /api/users/status` (superadmin user-status view) | 🚧 being implemented |
+| Two-role model (`Admin` / `Client`) | ✅ replaced by the 3-tier model |
+| Three-role model (`SuperAdmin` / `Subscriber` / `Client`) | ✅ done — `models/User.js` enum |
+| `GET /api/users/status` (superadmin user-status view) | ✅ done — `routes/userRoutes.js` |
 
-Until the migration runs, every `Admin` holds every privileged permission, which
-is why the seeded accounts are indistinguishable today.
+Verified by `npm test`: SuperAdmin can read user data, Subscriber gets `403` on
+every user-administration route but `201` on upload/edit, Client gets `403` on
+both.
 
 ## Permission matrix
 

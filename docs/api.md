@@ -4,10 +4,10 @@ Base URL: `http://localhost:3000` (or `PROJECT_URL`). Interactive docs with full
 schemas: `GET /docs` (Swagger UI, generated from `swaggerConfig.js` + JSDoc
 annotations on the route files).
 
-> **Role names in the tables below are the target model** described in
-> [rbac.md](rbac.md). Until the role migration lands, the tokens still carry
-> `Admin` / `Client` and `Admin` holds every privileged row. Keep
-> [development-state.md](development-state.md) in sync when that changes.
+> Role names follow [rbac.md](rbac.md): `SuperAdmin`, `Subscriber`, `Client`.
+> Existing databases are migrated with `scripts/migrateRoles.js`. Tokens issued
+> before a role change keep the old claim until they expire (1 h) — re-login after
+> changing roles.
 
 ## Conventions
 
@@ -33,7 +33,7 @@ annotations on the route files).
 | GET | `/api/users` | SuperAdmin | Active users, `password` excluded |
 | PUT | `/api/users` | any authenticated | Update **own** `username` / `password` / `ethAddress` |
 | GET | `/api/users/inactive` | SuperAdmin | Soft-deleted users |
-| GET | `/api/users/status` 📋 | SuperAdmin | Per-user status: role, active flag, ETH balance, NFT count, last login |
+| GET | `/api/users/status` | SuperAdmin | Per-user status: role, active flag, ETH balance, NFT count, last login |
 | DELETE | `/api/users/:id` | SuperAdmin | Soft delete (`isActive = false`), keeps the record |
 | PUT | `/api/users/:id/reactivate` | SuperAdmin | Undo a soft delete |
 | POST | `/api/nfts` | SuperAdmin, Subscriber | Upload image + generate metadata (multipart) |
@@ -41,8 +41,6 @@ annotations on the route files).
 | PUT | `/api/nfts/:id` | SuperAdmin, Subscriber | Partial update of `name`, `description`, `bidPrice`, `attributes` |
 | POST | `/api/nfts/mint` | SuperAdmin, Subscriber | Mint `metadataURI` to the caller's `ethAddress` |
 | GET | `/api/wallet/balance` | any authenticated | ETH balance of the caller's `ethAddress` |
-
-`📋` = designed but not implemented yet.
 
 ### POST /register
 
@@ -73,9 +71,9 @@ Passwords are re-hashed by the model's pre-save hook.
 
 `200 {"message":"User updated successfully","user":{...}}`
 
-### GET /api/users/status 📋
+### GET /api/users/status
 
-Planned response, one object per user:
+`200` — one object per user:
 
 ```json
 { "id": "...", "username": "admin1", "role": "Subscriber", "isActive": true,

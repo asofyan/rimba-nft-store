@@ -54,6 +54,19 @@ module.exports = {
     return web3.utils.fromWei(balanceWei, 'ether');
   },
 
+  // Jumlah token RimbaNFT yang dipegang sebuah address (on-chain balanceOf).
+  // Return null jika kontrak belum dideploy / address tidak valid.
+  getNftCount: async function (address) {
+    if (!web3.utils.isAddress(address)) return null;
+    try {
+      const contract = getContract();
+      const count = await contract.methods.balanceOf(address).call();
+      return Number(count);
+    } catch (error) {
+      return null;
+    }
+  },
+
   mintNFT: async function (toAddress, metadataURI) {
     try {
       const contract = getContract();

@@ -7,7 +7,8 @@ const app = require('../app');
 const User = require('../models/User');
 const NFT = require('../models/NFT');
 
-const ADMIN = { username: 'test-admin', password: 'adminpass123', ethAddress: '0x48320dcDDf05474BDEF8bDA9Cb848a1333d94a98', role: 'Admin' };
+const ADMIN = { username: 'test-admin', password: 'adminpass123', ethAddress: '0x48320dcDDf05474BDEF8bDA9Cb848a1333d94a98', role: 'SuperAdmin' };
+const SUBSCRIBER = { username: 'test-seller', password: 'sellerpass123', ethAddress: '0x48320dcDDf05474BDEF8bDA9Cb848a1333d94a98', role: 'Subscriber' };
 const CLIENT = { username: 'test-client', password: 'clientpass123', ethAddress: '0x48320dcDDf05474BDEF8bDA9Cb848a1333d94a98' };
 
 async function registerAndLogin(user) {
@@ -16,11 +17,17 @@ async function registerAndLogin(user) {
   return res.body.token;
 }
 
-// Admin tidak bisa dibuat via /register (role selalu Client) — buat langsung via model,
-// sama seperti scripts/createAdmin.js
+// Role privileged tidak bisa didapat via /register (selalu Client) — buat langsung
+// via model, sama seperti scripts/createAdmin.js
 async function createAdminAndLogin() {
   await User.create(ADMIN);
   const res = await request(app).post('/login').send({ username: ADMIN.username, password: ADMIN.password });
+  return res.body.token;
+}
+
+async function createSubscriberAndLogin() {
+  await User.create(SUBSCRIBER);
+  const res = await request(app).post('/login').send({ username: SUBSCRIBER.username, password: SUBSCRIBER.password });
   return res.body.token;
 }
 
@@ -68,6 +75,10 @@ describe('POST /login', () => {
     const payload = JSON.parse(Buffer.from(res.body.token.split('.')[1], 'base64').toString());
     expect(payload.role).toBe('Client');
     expect(payload.username).toBe(CLIENT.username);
+
+    // lastLoginAt diisi saat login sukses
+    const user = await User.findOne({ username: CLIENT.username });
+    expect(user.lastLoginAt).toBeInstanceOf(Date);
   });
 
   it('401 password salah', async () => {
@@ -86,7 +97,7 @@ describe('POST /login', () => {
   });
 });
 
-describe('RBAC /api/users', () => {
+describe('RBAC /api/users (SuperAdmin only)', () => {
   it('401 tanpa token', async () => {
     const res = await request(app).get('/api/users');
     expect(res.status).toBe(401);
@@ -98,7 +109,13 @@ describe('RBAC /api/users', () => {
     expect(res.status).toBe(403);
   });
 
-  it('200 Admin bisa lihat daftar user tanpa password', async () => {
+  it('403 Subscriber dilarang lihat daftar user', async () => {
+    const token = await createSubscriberAndLogin();
+    const res = await request(app).get('/api/users').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(403);
+  });
+
+  it('200 SuperAdmin bisa lihat daftar user tanpa password', async () => {
     await request(app).post('/register').send(CLIENT);
     const adminToken = await createAdminAndLogin();
     const res = await request(app).get('/api/users').set('Authorization', `Bearer ${adminToken}`);
@@ -109,7 +126,21 @@ describe('RBAC /api/users', () => {
     }
   });
 
-  it('soft-delete lalu reactivate oleh Admin', async () => {
+  it('403 Subscriber dilarang menonaktifkan user', async () => {
+    await request(app).post('/register').send(CLIENT);
+    const subscriberToken = await createSubscriberAndLogin();
+    const client = await User.findOne({ username: CLIENT.username });
+
+    const res = await request(app)
+      .delete(`/api/users/${client._id}`)
+      .set('Authorization', `Bearer ${subscriberToken}`);
+    expect(res.status).toBe(403);
+
+    const stillActive = await User.findById(client._id);
+    expect(stillActive.isActive).toBe(true);
+  });
+
+  it('soft-delete lalu reactivate oleh SuperAdmin', async () => {
     await request(app).post('/register').send(CLIENT);
     const adminToken = await createAdminAndLogin();
     const client = await User.findOne({ username: CLIENT.username });
@@ -123,6 +154,42 @@ describe('RBAC /api/users', () => {
     const reactivate = await request(app).put(`/api/users/${client._id}/reactivate`).set('Authorization', `Bearer ${adminToken}`);
     expect(reactivate.status).toBe(200);
     expect(reactivate.body.user.isActive).toBe(true);
+  });
+});
+
+describe('GET /api/users/status (SuperAdmin only)', () => {
+  it('403 Client dan Subscriber ditolak', async () => {
+    const clientToken = await registerAndLogin(CLIENT);
+    const subscriberToken = await createSubscriberAndLogin();
+
+    const asClient = await request(app).get('/api/users/status').set('Authorization', `Bearer ${clientToken}`);
+    expect(asClient.status).toBe(403);
+    const asSubscriber = await request(app).get('/api/users/status').set('Authorization', `Bearer ${subscriberToken}`);
+    expect(asSubscriber.status).toBe(403);
+  });
+
+  it('200 SuperAdmin melihat status semua user (aktif & nonaktif)', async () => {
+    await request(app).post('/register').send(CLIENT);
+    const adminToken = await createAdminAndLogin();
+
+    // buat satu user nonaktif
+    const client = await User.findOne({ username: CLIENT.username });
+    client.isActive = false;
+    await client.save();
+
+    const res = await request(app).get('/api/users/status').set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+
+    const row = res.body.find((u) => u.username === CLIENT.username);
+    expect(row).toBeDefined();
+    expect(row.role).toBe('Client');
+    expect(row.isActive).toBe(false);
+    expect(row.ethAddress).toBe(CLIENT.ethAddress);
+    expect(row).toHaveProperty('balance');
+    expect(row).toHaveProperty('nftCount');
+    expect(row).toHaveProperty('lastLoginAt');
+    expect(row.password).toBeUndefined();
   });
 });
 
@@ -151,11 +218,12 @@ describe('PUT /api/users (profil sendiri)', () => {
 
 describe('/api/nfts', () => {
   const PNG_BASE64 = 'iVBORw0KGgo=';
-  let adminToken, clientToken;
+  let adminToken, clientToken, subscriberToken;
 
   beforeEach(async () => {
     adminToken = await createAdminAndLogin();
     clientToken = await registerAndLogin(CLIENT);
+    subscriberToken = await createSubscriberAndLogin();
   });
 
   it('401 tanpa token', async () => {
@@ -173,7 +241,34 @@ describe('/api/nfts', () => {
     expect(res.status).toBe(403);
   });
 
-  it('Admin upload NFT → attributes & metadataURL tersimpan', async () => {
+  it('Subscriber boleh upload NFT (sell)', async () => {
+    const res = await request(app)
+      .post('/api/nfts')
+      .set('Authorization', `Bearer ${subscriberToken}`)
+      .field('name', 'Jual Rimba')
+      .field('description', 'Dari Subscriber')
+      .attach('image', Buffer.from(PNG_BASE64, 'base64'), { filename: 'a.png', contentType: 'image/png' });
+    expect(res.status).toBe(201);
+    expect(res.body.nftRecord.name).toBe('Jual Rimba');
+  });
+
+  it('Subscriber boleh edit NFT', async () => {
+    const created = await request(app)
+      .post('/api/nfts')
+      .set('Authorization', `Bearer ${subscriberToken}`)
+      .field('name', 'Nama Awal')
+      .field('description', 'Deskripsi')
+      .attach('image', Buffer.from(PNG_BASE64, 'base64'), { filename: 'a.png', contentType: 'image/png' });
+
+    const res = await request(app)
+      .put(`/api/nfts/${created.body.nftRecord._id}`)
+      .set('Authorization', `Bearer ${subscriberToken}`)
+      .send({ bidPrice: 1.5 });
+    expect(res.status).toBe(200);
+    expect(res.body.nftRecord.bidPrice).toBe(1.5);
+  });
+
+  it('SuperAdmin upload NFT → attributes & metadataURL tersimpan', async () => {
     const res = await request(app)
       .post('/api/nfts')
       .set('Authorization', `Bearer ${adminToken}`)

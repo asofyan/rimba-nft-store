@@ -39,7 +39,7 @@ exists. The API does not reconcile this automatically (see
 | `server.js` | Loads `.env`, connects Mongo, starts HTTP listener; exits on DB failure |
 | `app.js` | Builds the Express app: middlewares, rate limiter, static dirs, Swagger, routes, error handler. Exported for tests (no `listen`) |
 | `routes/authRoutes.js` | `POST /register` (always role `Client`), `POST /login` → JWT `1h` |
-| `routes/userRoutes.js` | User administration (list, self-update, soft delete, reactivate) |
+| `routes/userRoutes.js` | User administration (list, status report, self-update, soft delete, reactivate) |
 | `routes/nftRoutes.js` | Asset upload → metadata, listing, edit, on-chain mint |
 | `routes/walletRoutes.js` | Read ETH balance of the caller's `ethAddress` |
 | `models/User.js` | Schema: `username` (unique), bcrypt-hashed `password`, `role`, `isActive`, `ethAddress`, `createdAt` |
@@ -50,7 +50,8 @@ exists. The API does not reconcile this automatically (see
 | `services/ipfs.js` | Optional Pinata pinning (`pinFile`, `pinJSON`); returns `null` when `PINATA_JWT` is unset |
 | `ethereum.js` | Lazy-loads contract ABI/address, reads balances, signs and sends `mint` |
 | `eth-nft/` | Hardhat project: `contracts/NFT.sol` (`RimbaNFT`), deploy script, contract tests |
-| `scripts/createAdmin.js` | Seeds a privileged user (bypasses `/register`) |
+| `scripts/createAdmin.js` | Seeds a privileged user with an explicit role (bypasses `/register`) |
+| `scripts/migrateRoles.js` | Idempotent migration `Admin` → `SuperAdmin` / `Subscriber` |
 | `swaggerConfig.js` | OpenAPI document served at `/docs` |
 | `test/api.test.js` | Jest + Supertest suite against `rimba-nft-store-test` |
 
@@ -124,7 +125,7 @@ role                image          ────────┐
 isActive            metadataURL ────┐       │
 ethAddress          bidPrice        │       └── points at metadata JSON
 createdAt           attributes      └────────── points at uploads/ or IPFS
-lastLoginAt 📋      minted
+lastLoginAt          minted
 ```
 
 There is **no foreign key between `User` and `NFT`** — an NFT record does not

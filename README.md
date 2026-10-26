@@ -1,7 +1,7 @@
 # Rimba NFT Store — Backend
 
 REST API for the Rimba NFT Store. Express + MongoDB + Web3, with JWT auth and
-role-based access (Admin/Client), NFT asset upload, and on-chain minting of the
+role-based access (SuperAdmin/Subscriber/Client), NFT asset upload, and on-chain minting of the
 `RimbaNFT` ERC-721 contract (OpenZeppelin 5) on a local Ganache chain.
 
 Everything runs locally: no paid RPC, no cloud database, and IPFS/Pinata is optional.
@@ -12,7 +12,7 @@ Everything runs locally: no paid RPC, no cloud database, and IPFS/Pinata is opti
 |---|---|
 | HTTP | Express 4, express-validator, express-rate-limit |
 | Database | MongoDB 7 + Mongoose 8 |
-| Auth | JWT (bcrypt-hashed passwords), roles `Admin` / `Client` |
+| Auth | JWT (bcrypt-hashed passwords), roles `SuperAdmin` / `Subscriber` / `Client` |
 | Uploads | Multer (JPEG/PNG/WebP, max 5 MB, disk storage) |
 | Chain | Web3 4 → Ganache (`chainId 1337`) |
 | Contract | Solidity 0.8.20, Hardhat 3, OpenZeppelin 5 (ERC-721 + ERC721URIStorage) |
@@ -36,7 +36,8 @@ models/                 User, NFT (Mongoose schemas)
 middleware/             authenticateToken (+ requireRole), upload (Multer), errorHandler
 services/ipfs.js        optional Pinata IPFS upload
 ethereum.js             contract interaction: balance, mint (lazy ABI load)
-scripts/createAdmin.js  seed the first Admin user
+scripts/createAdmin.js  seed a privileged user (role optional, default SuperAdmin)
+scripts/migrateRoles.js  migrate legacy Admin -> SuperAdmin/Subscriber
 swaggerConfig.js        OpenAPI definition for /docs
 eth-nft/                smart contract + Hardhat project (separate ESM package)
   contracts/NFT.sol           RimbaNFT
@@ -71,8 +72,9 @@ npx ganache --port 8545 --chain.chainId 1337 \
 (cd eth-nft && npx hardhat compile)
 (cd eth-nft && npx hardhat run scripts/deploy.js --network ganache)
 
-# 5. First Admin (password >= 6 chars, ETH address must be a valid address)
+# 5. First SuperAdmin (password >= 6 chars, ETH address must be a valid address)
 node scripts/createAdmin.js admin admin123 0x90F8bf6A479f320ead074411a4B0e7944Ea8c9C1
+#    optional 4th arg: SuperAdmin (default) | Subscriber | Client
 
 # 6. Run
 npm run dev      # nodemon, or: npm start
@@ -188,18 +190,28 @@ cd ..
 grep CONTRACT_ADDRESS .env   # sanity check
 ```
 
-### 6. Seed the first Admin
+### 6. Seed the first SuperAdmin
 
-`POST /register` always creates a **Client** (you cannot self-assign Admin), so
-the first Admin is seeded from the CLI:
+`POST /register` always creates a **Client** (you cannot self-assign a role), so
+privileged users are seeded from the CLI:
 
 ```bash
-node scripts/createAdmin.js <username> <password> <ethAddress>
+node scripts/createAdmin.js <username> <password> <ethAddress> [role]
+#   role: SuperAdmin (default) | Subscriber | Client
 ```
 
-Re-running it on an existing username promotes that user to Admin and
-reactivates it. The `ethAddress` is where minted NFTs go — use a valid address,
-e.g. another Ganache account.
+Re-running it on an existing username sets that role and reactivates the
+account. The `ethAddress` is where minted NFTs go — use a valid address, e.g.
+another Ganache account.
+
+Legacy databases with the old `Admin` role can be migrated (idempotent):
+
+```bash
+node scripts/migrateRoles.js --dry-run   # preview
+node scripts/migrateRoles.js             # admin -> SuperAdmin, other Admins -> Subscriber
+```
+
+Full role model and permission matrix: [`docs/rbac.md`](docs/rbac.md).
 
 ### 7. Start the server
 
@@ -236,13 +248,13 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/wallet/balan
 # list NFTs
 curl -s -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/nfts
 
-# upload an asset (Admin)
+# upload an asset (SuperAdmin or Subscriber)
 curl -s -X POST -H "Authorization: Bearer $TOKEN" \
   -F "name=Rimba Test" -F "description=Local run" \
   -F "image=@./some.png" -F "bidPrice=0.5" \
   http://localhost:3000/api/nfts
 
-# mint it on-chain (Admin). metadataURI must equal the returned metadataURL
+# mint it on-chain (SuperAdmin or Subscriber). metadataURI must equal the returned metadataURL
 curl -s -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"metadataURI":"http://localhost:3000/metadata/metadata-....json"}' \
   http://localhost:3000/api/nfts/mint
@@ -254,15 +266,16 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/
 |---|---|---|---|
 | POST | `/register` | public | body `{username, password, ethAddress}` → always `Client` |
 | POST | `/login` | public | → `{ token }` (JWT: `id`, `role`, `username`) |
-| GET | `/api/users` | Admin | list users |
+| GET | `/api/users` | SuperAdmin | list active users |
+| GET | `/api/users/status` | SuperAdmin | per-user status: role, active, ETH balance, NFT count, last login |
 | PUT | `/api/users` | auth | update **own** profile (`username`, `password`, `ethAddress`) |
-| GET | `/api/users/inactive` | Admin | soft-deleted users |
-| DELETE | `/api/users/:id` | Admin | soft delete (`isActive = false`) |
-| PUT | `/api/users/:id/reactivate` | Admin | reactivate |
-| POST | `/api/nfts` | Admin | multipart: `name`, `description`, `image`, `attributes` (JSON string), `bidPrice` |
+| GET | `/api/users/inactive` | SuperAdmin | soft-deleted users |
+| DELETE | `/api/users/:id` | SuperAdmin | soft delete (`isActive = false`) |
+| PUT | `/api/users/:id/reactivate` | SuperAdmin | reactivate |
+| POST | `/api/nfts` | SuperAdmin, Subscriber | multipart: `name`, `description`, `image`, `attributes` (JSON string), `bidPrice` |
 | GET | `/api/nfts` | auth | all NFTs + `minted` flag |
-| PUT | `/api/nfts/:id` | Admin | partial: `name`, `description`, `bidPrice`, `attributes` |
-| POST | `/api/nfts/mint` | Admin | body `{ metadataURI }`; mints to the caller's `ethAddress` |
+| PUT | `/api/nfts/:id` | SuperAdmin, Subscriber | partial: `name`, `description`, `bidPrice`, `attributes` |
+| POST | `/api/nfts/mint` | SuperAdmin, Subscriber | body `{ metadataURI }`; mints to the caller's `ethAddress` |
 | GET | `/api/wallet/balance` | auth | ETH balance of the caller's `ethAddress` |
 
 Full request/response schemas: <http://localhost:3000/docs>.
@@ -279,7 +292,7 @@ NODE_ENV=test npx jest --runInBand
 npm run test:contracts       # contract tests — in-memory network, no ganache needed
 ```
 
-Current status: 18 API tests passing, 5 contract tests passing.
+Current status: 24 API tests passing, 5 contract tests passing.
 
 The API suite connects to `mongodb://localhost:27017/rimba-nft-store-test` and
 clears the User/NFT collections between tests; it never touches your dev data.

@@ -16,7 +16,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['Admin', 'Client'],
+    enum: ['SuperAdmin', 'Subscriber', 'Client'],
     default: 'Client',
   },
   isActive: {
@@ -27,6 +27,10 @@ const userSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
+  },
+  lastLoginAt: {
+    type: Date,
+    default: null,
   },
 });
 
