@@ -300,6 +300,15 @@ clears the User/NFT collections between tests; it never touches your dev data.
 | Upload rejected | only `image/jpeg`, `image/png`, `image/webp`, max 5 MB |
 | `EADDRINUSE :3000` | another process holds the port (`lsof -nP -iTCP:3000 -sTCP:LISTEN`) — also do not run the frontend on 3000 |
 
+## Documentation
+
+Living docs in [`docs/`](docs/README.md) — keep them in sync with the code:
+
+- [`docs/architecture.md`](docs/architecture.md) — topology, modules, request flows, data model
+- [`docs/api.md`](docs/api.md) — endpoint reference and role matrix
+- [`docs/rbac.md`](docs/rbac.md) — roles, permissions, provisioning, how to add a role
+- [`docs/development-state.md`](docs/development-state.md) — phase status, known gaps, decision log
+
 ## Related
 
 Frontend: see `../frontend/README.md` (React app, must run on a port other than
